@@ -1,36 +1,123 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Grocery List
 
-## Getting Started
+A simple grocery list app built for the Trodo JavaScript assignment.
 
-First, run the development server:
+**Live demo:** https://trodo-grocery-iyvp8tgny-test-academy1.vercel.app
+
+Add items with a name and price, mark them as done, hide completed items, see the total of pending items, and add special item types:
+
+- **Perishable goods:** expiration date (required) and keep-in temperature (optional)
+- **Consumer goods:** picture URL (optional, shown as an image)
+
+Data is stored in PostgreSQL, so nothing is lost when the server restarts.
+
+## Tech stack
+
+| Layer | Choice |
+| --- | --- |
+| Framework | Next.js 16 (App Router) + TypeScript |
+| API | REST route handlers (`/api/items`) |
+| Database | PostgreSQL + Drizzle ORM |
+| Validation | Zod, shared by the form and the API |
+| Styling | Tailwind CSS |
+| Tests | Vitest (unit) + Playwright (end-to-end) |
+| Hosting | Vercel (app) + Aiven (PostgreSQL) |
+
+## Running locally
+
+### Prerequisites
+
+- Node.js 22 or newer (`node -v`)
+- Docker Desktop (running)
+
+### Steps
 
 ```bash
+# 1. Clone and install
+git clone https://github.com/Saidalo/trodo-grocery.git
+cd trodo-grocery
+npm install
+
+# 2. Configure the database connection
+cp .env.example .env
+
+# 3. Start PostgreSQL in Docker
+docker compose up -d
+
+# 4. Create the database table
+npm run db:migrate
+
+# 5. Start the app
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The default `.env` points to the local Docker database:
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```text
+DATABASE_URL=postgres://grocery:grocery@localhost:5432/grocery
+```
 
-## Learn More
+To stop the database, run `docker compose down`. Your data is kept in a Docker volume. Use `docker compose down -v` to delete it.
 
-To learn more about Next.js, take a look at the following resources:
+## Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Command | What it does |
+| --- | --- |
+| `npm run dev` | Start the dev server on port 3000 |
+| `npm run build` / `npm start` | Production build and server |
+| `npm test` | Unit tests (validation, price math) |
+| `npm run test:e2e` | Browser test of the full user flow (run `npx playwright install chromium` once first) |
+| `npm run lint` | ESLint |
+| `npm run typecheck` | TypeScript check |
+| `npm run db:generate` | Create a new migration after changing `src/db/schema.ts` |
+| `npm run db:migrate` | Apply migrations to the database in `DATABASE_URL` |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## API
 
-## Deploy on Vercel
+| Method | Path | Description |
+| --- | --- | --- |
+| GET | `/api/items` | List all items, newest first |
+| POST | `/api/items` | Create an item |
+| PATCH | `/api/items/:id` | Mark an item done or not done (`{ "done": true }`) |
+| DELETE | `/api/items/:id` | Remove an item |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Example:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+curl -X POST http://localhost:3000/api/items \
+  -H "Content-Type: application/json" \
+  -d '{"type":"PERISHABLE","name":"Yogurt","price":2.49,"expirationDate":"2026-12-31","keepInTemperature":4}'
+```
+
+Invalid input returns `400` with a message per field. An unknown id returns `404`.
+
+## Project structure
+
+```text
+src/
+├── app/
+│   ├── page.tsx              # Root route: loads items on the server
+│   └── api/items/            # REST endpoints
+├── components/               # GroceryApp, ItemForm, ItemRow
+├── db/                       # Drizzle schema and connection
+└── lib/                      # Validation, price helpers, data access
+drizzle/                      # SQL migrations
+e2e/                          # Playwright test
+```
+
+## Design decisions
+
+- **One `items` table with a `type` column.** Type-specific fields are nullable. A Zod discriminated union checks which fields each type needs, and a database check constraint makes sure perishables always have an expiration date.
+- **Prices are stored as whole cents** (integers) to avoid floating-point rounding errors.
+- **The pending total** counts every item that isn't done, whether or not completed items are hidden.
+- **Instant UI updates:** marking items done and deleting them update the screen immediately and roll back if the server request fails.
+- **Expired perishables** are shown in red.
+- **Broken image URLs** are hidden instead of showing a broken image, and only `http(s)` URLs are accepted.
+
+## With more time
+
+- Edit existing items
+- Sorting (by date, price or expiration)
+- User accounts, so each person has their own list
