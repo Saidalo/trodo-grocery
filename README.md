@@ -2,7 +2,7 @@
 
 A simple grocery list app built for the Trodo JavaScript assignment.
 
-**Live demo:** https://trodo-grocery-iyvp8tgny-test-academy1.vercel.app
+**Live demo:** https://trodo-grocery.vercel.app
 
 Add items with a name and price, mark them as done, hide completed items, see the total of pending items, and add special item types:
 
